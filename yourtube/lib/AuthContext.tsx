@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { signInWithPopup } from "firebase/auth";
 import axiosInstance from "./axiosinstance";
 import { auth, provider } from "./firebase";
@@ -89,10 +95,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  return React.createElement(
-    UserContext.Provider,
-    { value: { user, logout, handlegooglesignin } },
-    children
+  return (
+    <UserContext.Provider
+      value={{
+        user,
+        logout,
+        handlegooglesignin,
+      }}
+    >
+      {children}
+    </UserContext.Provider>
   );
 };
 

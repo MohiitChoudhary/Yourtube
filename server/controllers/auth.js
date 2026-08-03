@@ -33,7 +33,7 @@ export const updateprofile = async (req, res) => {
           description: description,
         },
       },
-      { new: true }
+      { returnDocument: "after" }
     );
     return res.status(201).json(updatedata);
   } catch (error) {

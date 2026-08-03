@@ -51,15 +51,19 @@ const Channeldialogue = ({ isopen, onclose, channeldata, mode }: any) => {
   };
   const handlesubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    if (!user?._id) {
+      alert("Please sign in before creating or editing your channel.");
+      return;
+    }
+
     const payload = {
       channelname: formData.name,
       description: formData.description,
     };
-    const response = await axiosInstance.patch(
-      `/user/update/${user._id}`,
-      payload
-    );
-    router.push(`/channel/${user?._id}`);
+
+    await axiosInstance.patch(`/user/update/${user._id}`, payload);
+    router.push(`/channel/${user._id}`);
     setFormData({
       name: "",
       description: "",

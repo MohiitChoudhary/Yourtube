@@ -12,6 +12,8 @@ export const uploadvideo = async (req, res) => {
       const storedFilename = req.file.filename || req.file.originalname;
       const relativePath = path.join("uploads", storedFilename);
 
+      const premiumVideo = req.body.premiumVideo === "true" || req.body.premiumVideo === true;
+
       const file = new video({
         videotitle: req.body.videotitle,
         filename: req.file.originalname,
@@ -20,6 +22,7 @@ export const uploadvideo = async (req, res) => {
         filesize: req.file.size,
         videochanel: req.body.videochanel,
         uploader: req.body.uploader,
+        premiumVideo,
       });
       await file.save();
       return res.status(201).json("file uploaded successfully");
