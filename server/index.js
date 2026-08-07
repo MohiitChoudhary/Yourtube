@@ -30,12 +30,18 @@ const server = http.createServer(app);
 // MIDDLEWARE
 // ==================================================
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://yourtube-taupe.vercel.app",
+  "https://yourtube-ql8f5dw96-mohit-choudhary-s-projects.vercel.app",
+  ...(process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
+    : []),
+];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://yourtube-taupe.vercel.app",
-    ],
+    origin: allowedOrigins,
     credentials: true,
   })
 );
@@ -108,10 +114,7 @@ app.use(
 
 const io = new Server(server, {
   cors: {
-    origin: [
-      "http://localhost:3000",
-      "https://yourtube-taupe.vercel.app",
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
