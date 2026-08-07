@@ -27,24 +27,110 @@ const app = express();
 const server = http.createServer(app);
 
 // ==================================================
-// MIDDLEWARE
+// CORS CONFIGURATION
 // ==================================================
 
+// Fixed allowed origins
 const allowedOrigins = [
+  // Local development
   "http://localhost:3000",
+
+  // Existing Vercel deployments
   "https://yourtube-taupe.vercel.app",
+  "https://yourtube-kappa.vercel.app",
   "https://yourtube-lplsalzv4-mohit-choudhary-s-projects.vercel.app",
+  "https://yourtube-bgc7tnq3n-mohit-choudhary-s-projects.vercel.app",
+  "https://yourtube-cpcto53r7-mohit-choudhary-s-projects.vercel.app",
+
+  // Environment variable origins
   ...(process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
+    ? process.env.ALLOWED_ORIGINS
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean)
     : []),
 ];
 
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  })
-);
+// ==================================================
+// CHECK WHETHER ORIGIN IS ALLOWED
+// ==================================================
+
+const isAllowedOrigin = (origin) => {
+  // Requests without an Origin header
+  // Example: Postman, server-to-server requests
+  if (!origin) {
+    return true;
+  }
+
+  // Exact allowed origin
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  // Allow Vercel preview deployments for this project
+  //
+  // Example:
+  // https://yourtube-cpcto53r7-mohit-choudhary-s-projects.vercel.app
+  // https://yourtube-git-main-mohit-choudhary-s-projects.vercel.app
+  //
+  const isYourTubeVercelDomain =
+    /^https:\/\/yourtube-[a-z0-9-]+-mohit-choudhary-s-projects\.vercel\.app$/i.test(
+      origin
+    );
+
+  if (isYourTubeVercelDomain) {
+    return true;
+  }
+
+  return false;
+};
+
+// ==================================================
+// CORS OPTIONS
+// ==================================================
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (isAllowedOrigin(origin)) {
+      callback(null, true);
+    } else {
+      console.log("❌ CORS blocked origin:", origin);
+
+      callback(new Error(`CORS blocked: ${origin}`));
+    }
+  },
+
+  credentials: true,
+
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ],
+
+  allowedHeaders: [
+    "Origin",
+    "X-Requested-With",
+    "Content-Type",
+    "Accept",
+    "Authorization",
+  ],
+
+  optionsSuccessStatus: 204,
+};
+
+// ==================================================
+// CORS MIDDLEWARE
+// ==================================================
+
+app.use(cors(corsOptions));
+
+// ==================================================
+// BODY PARSER
+// ==================================================
 
 app.use(
   express.json({
@@ -65,12 +151,9 @@ app.use(
 
 app.use(
   "/uploads",
-  express.static(
-    path.join(process.cwd(), "uploads"),
-    {
-      index: false,
-    }
-  )
+  express.static(path.join(process.cwd(), "uploads"), {
+    index: false,
+  })
 );
 
 // ==================================================
@@ -78,7 +161,7 @@ app.use(
 // ==================================================
 
 app.get("/", (req, res) => {
-  res.send("You tube backend is working");
+  res.status(200).send("YouTube backend is working");
 });
 
 // ==================================================
@@ -99,14 +182,9 @@ app.use("/comment", commentroutes);
 
 app.use("/download", downloadroutes);
 
-app.use(
-  "/watchparty",
-  watchpartyRoutes
-);
-app.use(
-  "/subscription",
-  subscriptionRoutes
-);
+app.use("/watchparty", watchpartyRoutes);
+
+app.use("/subscription", subscriptionRoutes);
 
 // ==================================================
 // SOCKET.IO SETUP
@@ -114,8 +192,18 @@ app.use(
 
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        console.log("❌ Socket.IO CORS blocked:", origin);
+
+        callback(new Error(`Socket.IO CORS blocked: ${origin}`));
+      }
+    },
+
     methods: ["GET", "POST"],
+
     credentials: true,
   },
 });
@@ -125,9 +213,7 @@ const io = new Server(server, {
 // ==================================================
 
 io.on("connection", (socket) => {
-  console.log(
-    `Socket connected: ${socket.id}`
-  );
+  console.log(`✅ Socket connected: ${socket.id}`);
 
   // ==================================================
   // JOIN WATCH PARTY
@@ -135,14 +221,10 @@ io.on("connection", (socket) => {
 
   socket.on(
     "join-watch-party",
-    ({
-      roomId,
-      userId,
-      username,
-    }) => {
+    ({ roomId, userId, username }) => {
       if (!roomId) {
         console.log(
-          "Cannot join Watch Party: roomId is missing"
+          "❌ Cannot join Watch Party: roomId is missing"
         );
 
         return;
@@ -157,24 +239,20 @@ io.on("connection", (socket) => {
       socket.data.username = username;
 
       console.log(
-        `User ${
-          username ||
-          userId ||
-          socket.id
+        `👤 User ${
+          username || userId || socket.id
         } joined Watch Party ${roomId}`
       );
 
       // Notify other users
-      socket
-        .to(roomId)
-        .emit(
-          "user-joined-watch-party",
-          {
-            userId,
-            username,
-            socketId: socket.id,
-          }
-        );
+      socket.to(roomId).emit(
+        "user-joined-watch-party",
+        {
+          userId,
+          username,
+          socketId: socket.id,
+        }
+      );
 
       // Confirm to the user who joined
       socket.emit(
@@ -193,25 +271,20 @@ io.on("connection", (socket) => {
 
   socket.on(
     "video-play",
-    ({
-      roomId,
-      currentTime,
-    }) => {
+    ({ roomId, currentTime }) => {
       if (!roomId) return;
 
       console.log(
-        `Video play in room ${roomId} at ${currentTime}`
+        `▶️ Video play in room ${roomId} at ${currentTime}`
       );
 
       // Send to everyone except sender
-      socket
-        .to(roomId)
-        .emit(
-          "video-play",
-          {
-            currentTime,
-          }
-        );
+      socket.to(roomId).emit(
+        "video-play",
+        {
+          currentTime,
+        }
+      );
     }
   );
 
@@ -221,25 +294,20 @@ io.on("connection", (socket) => {
 
   socket.on(
     "video-pause",
-    ({
-      roomId,
-      currentTime,
-    }) => {
+    ({ roomId, currentTime }) => {
       if (!roomId) return;
 
       console.log(
-        `Video pause in room ${roomId} at ${currentTime}`
+        `⏸️ Video pause in room ${roomId} at ${currentTime}`
       );
 
       // Send to everyone except sender
-      socket
-        .to(roomId)
-        .emit(
-          "video-pause",
-          {
-            currentTime,
-          }
-        );
+      socket.to(roomId).emit(
+        "video-pause",
+        {
+          currentTime,
+        }
+      );
     }
   );
 
@@ -249,25 +317,20 @@ io.on("connection", (socket) => {
 
   socket.on(
     "video-seek",
-    ({
-      roomId,
-      currentTime,
-    }) => {
+    ({ roomId, currentTime }) => {
       if (!roomId) return;
 
       console.log(
-        `Video seek in room ${roomId} to ${currentTime}`
+        `⏩ Video seek in room ${roomId} to ${currentTime}`
       );
 
       // Send to everyone except sender
-      socket
-        .to(roomId)
-        .emit(
-          "video-seek",
-          {
-            currentTime,
-          }
-        );
+      socket.to(roomId).emit(
+        "video-seek",
+        {
+          currentTime,
+        }
+      );
     }
   );
 
@@ -288,23 +351,19 @@ io.on("connection", (socket) => {
       }
 
       console.log(
-        `Chat message from ${
-          username ||
-          userId ||
-          socket.id
+        `💬 Chat message from ${
+          username || userId || socket.id
         } in room ${roomId}`
       );
 
-      // Send message to everyone
-      // including sender
+      // Send message to everyone including sender
       io.to(roomId).emit(
         "chat-message",
         {
           userId,
           username,
           message,
-          timestamp:
-            new Date().toISOString(),
+          timestamp: new Date().toISOString(),
         }
       );
     }
@@ -316,35 +375,27 @@ io.on("connection", (socket) => {
 
   socket.on(
     "leave-watch-party",
-    ({
-      roomId,
-      userId,
-      username,
-    }) => {
+    ({ roomId, userId, username }) => {
       if (!roomId) return;
 
       // Leave Socket.IO room
       socket.leave(roomId);
 
       console.log(
-        `User ${
-          username ||
-          userId ||
-          socket.id
+        `👋 User ${
+          username || userId || socket.id
         } left Watch Party ${roomId}`
       );
 
       // Notify remaining users
-      socket
-        .to(roomId)
-        .emit(
-          "user-left-watch-party",
-          {
-            userId,
-            username,
-            socketId: socket.id,
-          }
-        );
+      socket.to(roomId).emit(
+        "user-left-watch-party",
+        {
+          userId,
+          username,
+          socketId: socket.id,
+        }
+      );
 
       // Clear room data
       socket.data.roomId = null;
@@ -355,38 +406,29 @@ io.on("connection", (socket) => {
   // USER DISCONNECT
   // ==================================================
 
-  socket.on(
-    "disconnect",
-    () => {
-      const roomId =
-        socket.data.roomId;
+  socket.on("disconnect", () => {
+    const roomId = socket.data.roomId;
 
-      const userId =
-        socket.data.userId;
+    const userId = socket.data.userId;
 
-      const username =
-        socket.data.username;
+    const username = socket.data.username;
 
-      console.log(
-        `Socket disconnected: ${socket.id}`
+    console.log(
+      `❌ Socket disconnected: ${socket.id}`
+    );
+
+    // Notify Watch Party members
+    if (roomId) {
+      socket.to(roomId).emit(
+        "user-left-watch-party",
+        {
+          userId,
+          username,
+          socketId: socket.id,
+        }
       );
-
-      // Notify Watch Party members
-      if (roomId) {
-        socket
-          .to(roomId)
-          .emit(
-            "user-left-watch-party",
-            {
-              userId,
-              username,
-              socketId:
-                socket.id,
-            }
-          );
-      }
     }
-  );
+  });
 });
 
 // ==================================================
@@ -395,37 +437,36 @@ io.on("connection", (socket) => {
 
 const DBURL = process.env.DB_URL;
 
-mongoose
-  .connect(DBURL)
-  .then(() => {
-    console.log(
-      "Mongodb connected"
-    );
-  })
-  .catch((error) => {
-    console.log(
-      "MongoDB connection error:",
-      error
-    );
-  });
+if (!DBURL) {
+  console.error(
+    "❌ DB_URL environment variable is missing"
+  );
+} else {
+  mongoose
+    .connect(DBURL)
+    .then(() => {
+      console.log("✅ MongoDB connected");
+    })
+    .catch((error) => {
+      console.error(
+        "❌ MongoDB connection error:",
+        error
+      );
+    });
+}
 
 // ==================================================
 // START SERVER
 // ==================================================
 
-const PORT =
-  process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000;
 
-server.listen(
-  PORT,
-  "0.0.0.0",
-  () => {
-    console.log(
-      `server running on port ${PORT}`
-    );
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(
+    `🚀 Server running on port ${PORT}`
+  );
 
-    console.log(
-      "Socket.IO server is ready"
-    );
-  }
-);
+  console.log(
+    "🔌 Socket.IO server is ready"
+  );
+});
