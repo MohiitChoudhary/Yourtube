@@ -4,4 +4,4 @@ node_modules/
 .next/
 .env
 .env.local
-.env.production
+.env.productiongit rm --cached .env.local
