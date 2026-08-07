@@ -33,7 +33,7 @@ const server = http.createServer(app);
 const allowedOrigins = [
   "http://localhost:3000",
   "https://yourtube-taupe.vercel.app",
-  "https://yourtube-bgc7tnq3n-mohit-choudhary-s-projects.vercel.app",
+  "https://yourtube-lplsalzv4-mohit-choudhary-s-projects.vercel.app",
   ...(process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
     : []),
